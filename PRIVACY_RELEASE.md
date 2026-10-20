@@ -44,11 +44,11 @@ By signing, you confirm you have read the above and consent to the capture
 described.
 
 ```
-Candidate name:        ______________________________
+Candidate name:        Mirza Sohail Ali Baig
 
-Date (YYYY-MM-DD):     ______________________________
+Date (YYYY-MM-DD):     2026-10-20
 
-Signature:             ______________________________
+Signature:             Sohail Baig
 
-Screen recording:      [ ] I consent      [ ] I decline
+Screen recording:      [x] I consent      [ ] I decline
 ```
