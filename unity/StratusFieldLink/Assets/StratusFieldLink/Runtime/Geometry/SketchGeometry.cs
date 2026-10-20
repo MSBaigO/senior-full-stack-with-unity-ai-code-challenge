@@ -16,8 +16,8 @@ namespace StratusFieldLink.Geometry
         /// <summary>
         /// Total length of the run in feet.
         ///
-        /// Crews sketch on the floor plane, so we measure the run the way it reads
-        /// on the plan sheet: distance across the slab between consecutive nodes.
+        /// Straight-line distance between consecutive nodes in 3D, so risers and
+        /// drops count. Matches the API's RunGeometry, which is the source of truth.
         /// </summary>
         public static float TotalLengthFeet(IList<SketchNodeDto> nodes)
         {
@@ -32,8 +32,9 @@ namespace StratusFieldLink.Geometry
                 var a = nodes[i - 1];
                 var b = nodes[i];
                 var dx = b.x - a.x;
+                var dy = b.y - a.y;
                 var dz = b.z - a.z;
-                total += Mathf.Sqrt((dx * dx) + (dz * dz));
+                total += Mathf.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
             }
 
             return total;
