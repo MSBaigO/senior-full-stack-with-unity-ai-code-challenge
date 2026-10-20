@@ -187,14 +187,48 @@ namespace StratusFieldLink.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator Publish_ClientError4xx_IsNotQueued()
+        public IEnumerator Publish_ClientError4xx_IsReportedAndKeptForRetry()
         {
             _transport.NextResponse = StubFieldLinkTransport.Status(400, "{\"error\":\"bad\"}");
 
             yield return _publisher.PublishRoutine(Sketch());
 
             Assert.AreEqual(PublishOutcome.RejectedByServer, _publisher.LastResult.Outcome);
-            Assert.AreEqual(0, _publisher.Queue.Count);
+            Assert.AreEqual(400, _publisher.LastResult.StatusCode);
+            StringAssert.Contains("bad", _publisher.LastResult.Message);
+            Assert.AreEqual(1, _publisher.Queue.Count);
+            Assert.AreEqual(1, _publisher.Queue.Drainable().Count);
+            var reloaded = new PublishQueue(TestKey);
+            reloaded.Load();
+            Assert.AreEqual(1, reloaded.Count, "4xx sketch must survive an app restart");
+        }
+
+        [UnityTest]
+        public IEnumerator Publish_409_IsKeptButHeldImmediately()
+        {
+            _transport.NextResponse = StubFieldLinkTransport.Status(409, "{\"error\":\"different content\"}");
+
+            yield return _publisher.PublishRoutine(Sketch());
+
+            Assert.AreEqual(PublishOutcome.RejectedByServer, _publisher.LastResult.Outcome);
+            Assert.AreEqual(1, _publisher.Queue.Count);
+            Assert.AreEqual(0, _publisher.Queue.Drainable().Count);
+        }
+
+        [UnityTest]
+        public IEnumerator Drain_4xxKeepsFailing_GivesUpAfterTheRetryCapAndHolds()
+        {
+            _transport.NextResponse = StubFieldLinkTransport.Status(400, "{\"error\":\"bad\"}");
+            yield return _publisher.PublishRoutine(Sketch());
+
+            for (var i = 0; i < PublishService.MaxRetries + 2; i++)
+            {
+                yield return _publisher.DrainQueue();
+            }
+
+            Assert.AreEqual(1 + PublishService.MaxRetries, _transport.CallCount);
+            Assert.AreEqual(1, _publisher.Queue.Count);
+            Assert.IsFalse(string.IsNullOrEmpty(_publisher.Queue.Peek().holdReason));
         }
 
         [UnityTest]

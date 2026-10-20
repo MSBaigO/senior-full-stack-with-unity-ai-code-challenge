@@ -113,8 +113,10 @@ namespace StratusFieldLink.Net
             //   2xx            sent. 200 = server already had it (duplicate, still a success).
             //   no signal      kept on the tablet; the drain stops, nothing is lost.
             //   5xx            kept and retried, at most MaxRetries times, then held.
-            //   4xx (409 too)  the sketch is wrong; the foreman is told why. A queued sketch
-            //                  is held (kept, never auto-resent) rather than lost.
+            //   4xx            the foreman is told why (RejectedByServer); kept and retried like
+            //                  5xx, at most MaxRetries times, then held.
+            //   409            kept but held at once (same id, different content): never auto-resent.
+            //   Held sketches stay on the tablet; republishing under the same id replaces them.
             if (response.IsSuccess)
             {
                 // 200 means the server already had this exact sketch; 201 means it is new.
@@ -189,16 +191,23 @@ namespace StratusFieldLink.Net
 
             var reason = ApiErrorDto.Describe(response.Body);
             var message = string.IsNullOrEmpty(reason) ? "Publish failed (HTTP " + response.StatusCode + ")." : reason;
-            if (wasQueued)
+            var conflict = response.StatusCode == 409;
+            if (wasQueued && !conflict)
             {
-                Queue.Hold(sketch.id, message);
-                Queue.Save();
+                sketch.retryCount++;
             }
 
+            var held = conflict || sketch.retryCount >= MaxRetries;
+            if (held)
+            {
+                sketch.holdReason = message;
+            }
+
+            KeepQueued(sketch, wasQueued);
             Complete(new PublishResult
             {
                 Outcome = PublishOutcome.RejectedByServer,
-                Message = message,
+                Message = held ? message + " Kept on this tablet." : message + " Saved; will retry (" + sketch.retryCount + " of " + MaxRetries + " retries used).",
                 StatusCode = response.StatusCode
             });
         }
