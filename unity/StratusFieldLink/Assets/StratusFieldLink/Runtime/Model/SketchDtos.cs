@@ -47,6 +47,12 @@ namespace StratusFieldLink.Model
         public float clientLengthFeet;
         public string clientVersion;
 
+        /// <summary>Retries already spent from the offline queue on server errors. Client-only bookkeeping.</summary>
+        public int retryCount;
+
+        /// <summary>Non-empty when the queue must not auto-send this sketch (409, 4xx, retries exhausted).</summary>
+        public string holdReason;
+
         public static FieldSketchDto NewDraft(string packageId, string crewId)
         {
             return new FieldSketchDto

@@ -12,6 +12,7 @@ namespace StratusFieldLink.Tests.PlayMode
         private GameObject _host;
         private PublishService _publisher;
         private StubFieldLinkTransport _transport;
+        private const string TestKey = "stratus.fieldlink.tests.playmode.pending";
 
         [SetUp]
         public void SetUp()
@@ -20,12 +21,15 @@ namespace StratusFieldLink.Tests.PlayMode
             _publisher = _host.AddComponent<PublishService>();
             _transport = new StubFieldLinkTransport();
             _publisher.Transport = _transport;
-            _publisher.Queue.Clear();
+            _publisher.DrainOnStart = false;
+            PlayerPrefs.DeleteKey(TestKey);
+            _publisher.Queue = new PublishQueue(TestKey);
         }
 
         [TearDown]
         public void TearDown()
         {
+            PlayerPrefs.DeleteKey(TestKey);
             if (_host != null)
             {
                 Object.Destroy(_host);
@@ -145,6 +149,132 @@ namespace StratusFieldLink.Tests.PlayMode
             Assert.AreEqual(PublishOutcome.RejectedByServer, _publisher.LastResult.Outcome);
             Assert.AreEqual(409, _publisher.LastResult.StatusCode);
             StringAssert.Contains("different content", _publisher.LastResult.Message);
+        }
+
+        private FieldSketchDto QueuedSketch()
+        {
+            var sketch = Sketch();
+            _publisher.Queue.Enqueue(sketch);
+            return sketch;
+        }
+
+        [UnityTest]
+        public IEnumerator Publish_NoSignal_QueuesTheSketchAndSaysSo()
+        {
+            _transport.NextResponse = StubFieldLinkTransport.Offline();
+
+            yield return _publisher.PublishRoutine(Sketch());
+
+            Assert.AreEqual(PublishOutcome.QueuedOffline, _publisher.LastResult.Outcome);
+            Assert.AreEqual(0, _publisher.LastResult.StatusCode);
+            Assert.AreEqual(1, _publisher.Queue.Count);
+            var reloaded = new PublishQueue(TestKey);
+            reloaded.Load();
+            Assert.AreEqual(1, reloaded.Count, "queue must survive an app restart");
+        }
+
+        [UnityTest]
+        public IEnumerator Publish_ServerError5xx_QueuesForRetryAndSaysSo()
+        {
+            _transport.NextResponse = StubFieldLinkTransport.Status(503, "unavailable");
+
+            yield return _publisher.PublishRoutine(Sketch());
+
+            Assert.AreEqual(PublishOutcome.QueuedForRetry, _publisher.LastResult.Outcome);
+            Assert.AreEqual(503, _publisher.LastResult.StatusCode);
+            Assert.AreEqual(1, _publisher.Queue.Count);
+            Assert.AreEqual(0, _publisher.Queue.Peek().retryCount);
+        }
+
+        [UnityTest]
+        public IEnumerator Publish_ClientError4xx_IsNotQueued()
+        {
+            _transport.NextResponse = StubFieldLinkTransport.Status(400, "{\"error\":\"bad\"}");
+
+            yield return _publisher.PublishRoutine(Sketch());
+
+            Assert.AreEqual(PublishOutcome.RejectedByServer, _publisher.LastResult.Outcome);
+            Assert.AreEqual(0, _publisher.Queue.Count);
+        }
+
+        [UnityTest]
+        public IEnumerator Drain_On201_SendsTheQueuedSketchAndRemovesIt()
+        {
+            QueuedSketch();
+            _transport.NextResponse = StubFieldLinkTransport.Status(201, "{}");
+
+            yield return _publisher.DrainQueue();
+
+            Assert.AreEqual(1, _transport.CallCount);
+            Assert.AreEqual(0, _publisher.Queue.Count);
+        }
+
+        [UnityTest]
+        public IEnumerator Drain_On200Duplicate_AlsoRemovesIt()
+        {
+            QueuedSketch();
+            _transport.NextResponse = StubFieldLinkTransport.Status(200, "{}");
+
+            yield return _publisher.DrainQueue();
+
+            Assert.AreEqual(0, _publisher.Queue.Count);
+            Assert.IsTrue(_publisher.LastResult.IsDuplicate);
+        }
+
+        [UnityTest]
+        public IEnumerator Drain_StopsAtTheFirstNetworkFailure()
+        {
+            QueuedSketch();
+            QueuedSketch();
+            _transport.NextResponse = StubFieldLinkTransport.Offline();
+
+            yield return _publisher.DrainQueue();
+
+            Assert.AreEqual(1, _transport.CallCount);
+            Assert.AreEqual(2, _publisher.Queue.Count);
+        }
+
+        [UnityTest]
+        public IEnumerator Drain_On409_KeepsTheSketchQueuedButNeverResendsIt()
+        {
+            QueuedSketch();
+            _transport.NextResponse = StubFieldLinkTransport.Status(409, "{\"error\":\"different content\"}");
+
+            yield return _publisher.DrainQueue();
+            yield return _publisher.DrainQueue();
+
+            Assert.AreEqual(1, _transport.CallCount);
+            Assert.AreEqual(1, _publisher.Queue.Count);
+            Assert.IsFalse(string.IsNullOrEmpty(_publisher.Queue.Peek().holdReason));
+        }
+
+        [UnityTest]
+        public IEnumerator Drain_5xxKeepsFailing_GivesUpAfterTheRetryCapAndHolds()
+        {
+            QueuedSketch();
+            _transport.NextResponse = StubFieldLinkTransport.Status(503, "unavailable");
+
+            for (var i = 0; i < PublishService.MaxRetries + 2; i++)
+            {
+                yield return _publisher.DrainQueue();
+            }
+
+            Assert.AreEqual(PublishService.MaxRetries, _transport.CallCount);
+            Assert.AreEqual(1, _publisher.Queue.Count);
+            Assert.IsFalse(string.IsNullOrEmpty(_publisher.Queue.Peek().holdReason));
+        }
+
+        [UnityTest]
+        public IEnumerator Publish_Success_AlsoSendsWhatWasWaitingInTheQueue()
+        {
+            QueuedSketch();
+            var fresh = Sketch();
+
+            yield return _publisher.PublishRoutine(fresh);
+
+            Assert.AreEqual(2, _transport.CallCount);
+            Assert.AreEqual(0, _publisher.Queue.Count);
+            StringAssert.Contains(fresh.id, _publisher.LastResult.Message);
         }
 
         // ---------------------------------------------------------------------

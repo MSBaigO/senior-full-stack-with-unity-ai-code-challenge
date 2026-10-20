@@ -44,6 +44,27 @@ namespace StratusFieldLink.Net
             _pending.Add(sketch);
         }
 
+        /// <summary>Sketches the queue may auto-send, oldest first. Held sketches stay in <see cref="Pending"/>.</summary>
+        public IList<FieldSketchDto> Drainable()
+        {
+            return _pending.FindAll(s => string.IsNullOrEmpty(s.holdReason));
+        }
+
+        public bool Contains(string id)
+        {
+            return _pending.Exists(s => s.id == id);
+        }
+
+        /// <summary>Keeps the sketch on the device but stops it being auto-sent.</summary>
+        public void Hold(string id, string reason)
+        {
+            var sketch = _pending.Find(s => s.id == id);
+            if (sketch != null)
+            {
+                sketch.holdReason = reason;
+            }
+        }
+
         public FieldSketchDto Peek()
         {
             return _pending.Count == 0 ? null : _pending[0];
