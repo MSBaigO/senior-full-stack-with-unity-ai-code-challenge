@@ -99,6 +99,54 @@ namespace StratusFieldLink.Tests.PlayMode
             Assert.AreEqual(12f, sketch.clientLengthFeet, 0.001f);
         }
 
+        [UnityTest]
+        public IEnumerator Publish_ServerSaysItAlreadyHasIt_IsSuccessFlaggedAsDuplicate()
+        {
+            _transport.NextResponse = StubFieldLinkTransport.Status(200, "{\"id\":\"SK-1\"}");
+
+            yield return _publisher.PublishRoutine(Sketch());
+
+            Assert.IsTrue(_publisher.LastResult.IsSuccess);
+            Assert.IsTrue(_publisher.LastResult.IsDuplicate);
+            StringAssert.Contains("duplicate", _publisher.LastResult.Message.ToLowerInvariant());
+        }
+
+        [UnityTest]
+        public IEnumerator Publish_NewSketchAccepted_IsNotFlaggedAsDuplicate()
+        {
+            _transport.NextResponse = StubFieldLinkTransport.Status(201, "{\"id\":\"SK-1\"}");
+
+            yield return _publisher.PublishRoutine(Sketch());
+
+            Assert.IsFalse(_publisher.LastResult.IsDuplicate);
+        }
+
+        [UnityTest]
+        public IEnumerator Publish_ServerRejects400_ReportsRejectedWithTheServersReason()
+        {
+            _transport.NextResponse = StubFieldLinkTransport.Status(400,
+                "{\"error\":\"Sketch failed validation.\",\"failures\":[{\"field\":\"diameterInches\",\"message\":\"Diameter must be greater than zero.\"}]}");
+
+            yield return _publisher.PublishRoutine(Sketch());
+
+            Assert.AreEqual(PublishOutcome.RejectedByServer, _publisher.LastResult.Outcome);
+            Assert.AreEqual(400, _publisher.LastResult.StatusCode);
+            StringAssert.Contains("Diameter must be greater than zero.", _publisher.LastResult.Message);
+        }
+
+        [UnityTest]
+        public IEnumerator Publish_ServerSays409_ReportsRejectedWithTheConflictMessage()
+        {
+            _transport.NextResponse = StubFieldLinkTransport.Status(409,
+                "{\"error\":\"Sketch 'SK-1' was already published with different content.\"}");
+
+            yield return _publisher.PublishRoutine(Sketch());
+
+            Assert.AreEqual(PublishOutcome.RejectedByServer, _publisher.LastResult.Outcome);
+            Assert.AreEqual(409, _publisher.LastResult.StatusCode);
+            StringAssert.Contains("different content", _publisher.LastResult.Message);
+        }
+
         // ---------------------------------------------------------------------
         // TODO(candidate): there is no test here for what happens when the tablet
         // is offline, when the server says 400, or when the same sketch is

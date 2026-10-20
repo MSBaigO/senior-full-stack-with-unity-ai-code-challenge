@@ -22,6 +22,9 @@ namespace StratusFieldLink.Net
         public string Message;
         public long StatusCode;
 
+        /// <summary>True when the server already had this exact sketch (HTTP 200). Still a success.</summary>
+        public bool IsDuplicate;
+
         public bool IsSuccess
         {
             get { return Outcome == PublishOutcome.Succeeded; }
@@ -104,11 +107,16 @@ namespace StratusFieldLink.Net
             // -----------------------------------------------------------------
             if (response.IsSuccess)
             {
+                // 200 means the server already had this exact sketch; 201 means it is new.
+                var duplicate = response.StatusCode == 200;
                 Complete(new PublishResult
                 {
                     Outcome = PublishOutcome.Succeeded,
-                    Message = "Published " + sketch.id,
-                    StatusCode = response.StatusCode
+                    Message = duplicate
+                        ? "Already published (duplicate): " + sketch.id
+                        : "Published " + sketch.id,
+                    StatusCode = response.StatusCode,
+                    IsDuplicate = duplicate
                 });
                 yield break;
             }
@@ -116,10 +124,11 @@ namespace StratusFieldLink.Net
             Debug.LogWarning("[FieldLink] publish did not land: " +
                              (response.IsNetworkError ? response.Error : response.StatusCode + " " + response.Body));
 
+            var reason = ApiErrorDto.Describe(response.Body);
             Complete(new PublishResult
             {
                 Outcome = PublishOutcome.RejectedByServer,
-                Message = "Publish failed.",
+                Message = string.IsNullOrEmpty(reason) ? "Publish failed (HTTP " + response.StatusCode + ")." : reason,
                 StatusCode = response.StatusCode
             });
         }
