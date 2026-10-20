@@ -36,6 +36,9 @@ public sealed class FieldSketch
 
     public string? ReviewNotes { get; set; }
 
+    /// <summary>1 for the first publish; incremented each time a rejected sketch is republished after rework.</summary>
+    public int Revision { get; set; } = 1;
+
     public List<StatusChange> History { get; set; } = new();
 
     /// <summary>Authoritative run length, computed from <see cref="Nodes"/>.</summary>

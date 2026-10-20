@@ -47,6 +47,12 @@ namespace StratusFieldLink.Model
         public float clientLengthFeet;
         public string clientVersion;
 
+        /// <summary>Retries already spent from the offline queue on server errors. Client-only bookkeeping.</summary>
+        public int retryCount;
+
+        /// <summary>Non-empty when the queue must not auto-send this sketch (409, 4xx, retries exhausted).</summary>
+        public string holdReason;
+
         public static FieldSketchDto NewDraft(string packageId, string crewId)
         {
             return new FieldSketchDto
@@ -61,10 +67,55 @@ namespace StratusFieldLink.Model
         }
     }
 
-    /// <summary>Shape the API returns on a 4xx. Nothing parses this yet.</summary>
+    [Serializable]
+    public class ApiFailureDto
+    {
+        public string field;
+        public string message;
+    }
+
+    /// <summary>Shape the API returns on a 4xx: a summary plus, for a 400, per-field failures.</summary>
     [Serializable]
     public class ApiErrorDto
     {
         public string error;
+        public List<ApiFailureDto> failures;
+
+        /// <summary>One human-readable line for the foreman. Empty when the body says nothing useful.</summary>
+        public static string Describe(string body)
+        {
+            if (string.IsNullOrEmpty(body))
+            {
+                return string.Empty;
+            }
+
+            ApiErrorDto parsed;
+            try
+            {
+                parsed = JsonUtility.FromJson<ApiErrorDto>(body);
+            }
+            catch (ArgumentException)
+            {
+                return string.Empty;
+            }
+
+            if (parsed == null)
+            {
+                return string.Empty;
+            }
+
+            if (parsed.failures != null && parsed.failures.Count > 0)
+            {
+                var messages = new List<string>();
+                foreach (var failure in parsed.failures)
+                {
+                    messages.Add(failure.message);
+                }
+
+                return string.Join(" ", messages);
+            }
+
+            return parsed.error ?? string.Empty;
+        }
     }
 }

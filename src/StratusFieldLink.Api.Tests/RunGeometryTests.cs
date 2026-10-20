@@ -49,4 +49,30 @@ public class RunGeometryTests
         var nodes = new List<SketchNode> { N(0, 0, 0), N(1, 0, 0), N(1, 0, 1) };
         Assert.Equal(2, RunGeometry.SegmentCount(nodes));
     }
+
+    // Parity vectors shared with the Unity client's SketchGeometryTests.
+    [Fact]
+    public void TotalLengthFeet_Diagonal_UsesAllThreeAxes()
+    {
+        var nodes = new List<SketchNode> { N(0, 0, 0), N(3, 4, 12) };
+        Assert.Equal(13d, RunGeometry.TotalLengthFeet(nodes), 6);
+    }
+
+    [Fact]
+    public void TotalLengthFeet_RunWithARiser_SumsHorizontalAndVertical()
+    {
+        var nodes = new List<SketchNode> { N(0, 10, 0), N(30, 10, 0), N(30, 22, 0) };
+        Assert.Equal(42d, RunGeometry.TotalLengthFeet(nodes), 6);
+    }
+
+    [Fact]
+    public void Validate_VerticalDropOffTheHeader_Passes()
+    {
+        var sketch = new FieldSketch
+        {
+            Id = "SK-DROP", PackageId = "PKG-CHW-L03", CrewId = "CREW-04", Discipline = "Piping", DiameterInches = 4,
+            Nodes = new List<SketchNode> { N(0, 22, 0), N(0, 10, 0) }
+        };
+        Assert.True(SketchValidator.Validate(sketch).IsValid);
+    }
 }

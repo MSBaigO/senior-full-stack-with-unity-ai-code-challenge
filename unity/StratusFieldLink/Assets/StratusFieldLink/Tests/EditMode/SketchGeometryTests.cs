@@ -37,6 +37,31 @@ namespace StratusFieldLink.Tests.EditMode
             Assert.AreEqual(70f, SketchGeometry.TotalLengthFeet(nodes), 0.001f);
         }
 
+        // Parity vectors shared with the API's RunGeometryTests: the API is the source of truth.
+        [Test]
+        public void TotalLengthFeet_VerticalDrop_CountsTheDrop()
+        {
+            var nodes = new List<SketchNodeDto> { N(0f, 22f, 0f), N(0f, 10f, 0f) };
+
+            Assert.AreEqual(12f, SketchGeometry.TotalLengthFeet(nodes), 0.001f);
+        }
+
+        [Test]
+        public void TotalLengthFeet_Diagonal_UsesAllThreeAxes()
+        {
+            var nodes = new List<SketchNodeDto> { N(0f, 0f, 0f), N(3f, 4f, 12f) };
+
+            Assert.AreEqual(13f, SketchGeometry.TotalLengthFeet(nodes), 0.001f);
+        }
+
+        [Test]
+        public void TotalLengthFeet_RunWithARiser_SumsHorizontalAndVertical()
+        {
+            var nodes = new List<SketchNodeDto> { N(0f, 10f, 0f), N(30f, 10f, 0f), N(30f, 22f, 0f) };
+
+            Assert.AreEqual(42f, SketchGeometry.TotalLengthFeet(nodes), 0.001f);
+        }
+
         [Test]
         public void SegmentCount_IsNodesMinusOne()
         {

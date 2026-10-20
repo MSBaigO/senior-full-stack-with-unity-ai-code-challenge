@@ -71,5 +71,49 @@ namespace StratusFieldLink.Tests.EditMode
             Assert.AreEqual("SK-1", reloaded.Peek().id);
             Assert.AreEqual(2, reloaded.Peek().nodes.Count);
         }
+
+        [Test]
+        public void Hold_KeepsTheSketchButRemovesItFromDrainable()
+        {
+            var queue = new PublishQueue(TestKey);
+            queue.Enqueue(Sketch("SK-1"));
+            queue.Enqueue(Sketch("SK-2"));
+
+            queue.Hold("SK-1", "409 conflict");
+
+            Assert.AreEqual(2, queue.Count);
+            Assert.AreEqual(1, queue.Drainable().Count);
+            Assert.AreEqual("SK-2", queue.Drainable()[0].id);
+        }
+
+        [Test]
+        public void SaveThenLoad_KeepsRetryCountAndHold()
+        {
+            var queue = new PublishQueue(TestKey);
+            var sketch = Sketch("SK-1");
+            sketch.retryCount = 2;
+            queue.Enqueue(sketch);
+            queue.Hold("SK-1", "409 conflict");
+            queue.Save();
+
+            var reloaded = new PublishQueue(TestKey);
+            reloaded.Load();
+
+            Assert.AreEqual(2, reloaded.Peek().retryCount);
+            Assert.AreEqual("409 conflict", reloaded.Peek().holdReason);
+            Assert.AreEqual(0, reloaded.Drainable().Count);
+        }
+
+        [Test]
+        public void Enqueue_ANewCopyOfAHeldSketch_ReleasesTheHold()
+        {
+            var queue = new PublishQueue(TestKey);
+            queue.Enqueue(Sketch("SK-1"));
+            queue.Hold("SK-1", "409 conflict");
+
+            queue.Enqueue(Sketch("SK-1"));
+
+            Assert.AreEqual(1, queue.Drainable().Count);
+        }
     }
 }

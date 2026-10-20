@@ -60,5 +60,15 @@ namespace StratusFieldLink.Tests.EditMode
 
             Assert.IsFalse(SketchValidation.Validate(sketch).IsValid);
         }
+
+        [Test]
+        public void Validate_VerticalDropOffTheHeader_Passes()
+        {
+            var sketch = Valid();
+            sketch.nodes[0] = new SketchNodeDto(new Vector3(0f, 22f, 0f));
+            sketch.nodes[1] = new SketchNodeDto(new Vector3(0f, 10f, 0f));
+
+            Assert.IsTrue(SketchValidation.Validate(sketch).IsValid);
+        }
     }
 }

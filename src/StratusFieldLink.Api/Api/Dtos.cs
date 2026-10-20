@@ -17,7 +17,24 @@ public sealed record SketchSummaryDto(
     string Status,
     DateTime CapturedAtUtc,
     DateTime? PublishedAtUtc,
-    string ClientVersion);
+    string ClientVersion,
+    int Revision);
+
+/// <summary>
+/// What the field client may send. Status, history and publish time are the server's to set,
+/// so they are deliberately not part of the contract.
+/// </summary>
+public sealed record PublishSketchRequest(
+    string? Id,
+    string? PackageId,
+    string? CrewId,
+    string? Discipline,
+    double DiameterInches,
+    string? Material,
+    List<SketchNode>? Nodes,
+    DateTime? CapturedAtUtc,
+    double ClientLengthFeet,
+    string? ClientVersion);
 
 public sealed record SketchDetailDto(
     SketchSummaryDto Summary,
@@ -63,7 +80,8 @@ public static class DtoMapper
             s.Status.ToString(),
             s.CapturedAtUtc,
             s.PublishedAtUtc,
-            s.ClientVersion);
+            s.ClientVersion,
+            s.Revision);
     }
 
     public static SketchDetailDto ToDetail(this FieldSketch s)
