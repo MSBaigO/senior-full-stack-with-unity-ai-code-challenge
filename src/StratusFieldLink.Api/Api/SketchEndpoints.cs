@@ -14,6 +14,7 @@ public static class SketchEndpoints
            && string.Equals(a.Discipline, b.Discipline, StringComparison.Ordinal)
            && string.Equals(a.Material, b.Material, StringComparison.Ordinal)
            && Math.Abs(a.DiameterInches - b.DiameterInches) < CoordinateTolerance
+           && Math.Abs(a.ClientLengthFeet - b.ClientLengthFeet) < CoordinateTolerance
            && a.Nodes.Count == b.Nodes.Count
            && a.Nodes.Zip(b.Nodes).All(p =>
                Math.Abs(p.First.X - p.Second.X) < CoordinateTolerance

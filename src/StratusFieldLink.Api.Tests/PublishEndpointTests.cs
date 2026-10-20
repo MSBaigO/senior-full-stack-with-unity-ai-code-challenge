@@ -90,6 +90,19 @@ public class PublishEndpointTests : IClassFixture<WebApplicationFactory<Program>
     }
 
     [Fact]
+    public async Task Post_SameIdButDifferentClientLength_IsNotADuplicate()
+    {
+        await _client.PostAsJsonAsync("/api/sketches", Payload("SK-LEN"));
+        var changed = (Dictionary<string, object?>)Payload("SK-LEN");
+        changed["clientLengthFeet"] = 99d;
+
+        var response = await _client.PostAsJsonAsync("/api/sketches", changed);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(24, _repo.Find("SK-LEN")!.ClientLengthFeet);
+    }
+
+    [Fact]
     public async Task Post_InvalidSketch_Returns400_WithFieldFailures()
     {
         var payload = (Dictionary<string, object?>)Payload("SK-BAD");
